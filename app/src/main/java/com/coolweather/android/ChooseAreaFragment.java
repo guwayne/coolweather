@@ -1,7 +1,11 @@
 package com.coolweather.android;
 
+import android.app.Fragment;
 import android.app.ProgressDialog;
+import android.content.Intent;
+import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -12,9 +16,7 @@ import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.fragment.app.Fragment;
+
 
 import com.coolweather.android.db.City;
 import com.coolweather.android.db.County;
@@ -33,6 +35,7 @@ import okhttp3.Callback;
 import okhttp3.Response;
 
 public class ChooseAreaFragment extends Fragment {
+
     private static final String TAG = "ChooseAreaFragment";
 
     public static final int LEVEL_PROVINCE = 0;
@@ -83,36 +86,57 @@ public class ChooseAreaFragment extends Fragment {
      */
     private int currentLevel;
 
-    @Nullable
+
     @Override
-    public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.choose_area, container, false);
         titleText = (TextView) view.findViewById(R.id.title_text);
         backButton = (Button) view.findViewById(R.id.back_button);
         listView = (ListView) view.findViewById(R.id.list_view);
-        adapter = new ArrayAdapter<>(getContext(), android.R.layout.simple_list_item_1, dataList);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            adapter = new ArrayAdapter<>(getContext(),android.R.layout.simple_list_item_1,dataList);
+        }
         listView.setAdapter(adapter);
         return view;
     }
 
     @Override
-    public void onActivityCreated(@Nullable Bundle savedInstanceState) {
+    public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
-            public void onItemClick(AdapterView<?> adapterView, View view, int position, long id) {
-                if (currentLevel==LEVEL_PROVINCE){
-                    selectedProvince=provinceList.get(position);
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                if (currentLevel == LEVEL_PROVINCE) {
+                    selectedProvince = provinceList.get(position);
                     queryCities();
-                }else if (currentLevel==LEVEL_CITY){
+                } else if (currentLevel == LEVEL_CITY) {
                     selectedCity = cityList.get(position);
                     queryCounties();
+                } else if (currentLevel == LEVEL_COUNTY) {
+                    String weatherId = countyList.get(position).getWeatherId();
+                    if (getActivity() instanceof MainActivity) {
+                        Intent intent = new Intent(getActivity(), WeatherActivity.class);
+                        intent.putExtra("weather_id", weatherId);
+                        startActivity(intent);
+                        getActivity().finish();
+                    } else if (getActivity() instanceof WeatherActivity) {
+                        WeatherActivity activity = (WeatherActivity) getActivity();
+                        activity.drawerLayout.closeDrawers();
+                        activity.swipeRefresh.setRefreshing(true);
+                        activity.requestWeather(weatherId);
+                    }
+
+//                    Intent intent = null;
+//                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+//                        intent = new Intent(getActivity(), WeatherActivity.class);
+//                    }
+//                    intent.putExtra("weather_id", weatherId);
+//                    getActivity().startActivity(intent);
+//                    getActivity().finish();
                 }
             }
         });
-        /**
-         * 点击返回  退回上一级
-         */
         backButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -127,22 +151,22 @@ public class ChooseAreaFragment extends Fragment {
     }
 
     /**
-     * 查询全国所有的省  优先从数据库查询  如果没有查询到 再去服务器上查询
+     * 查询全国所有的省，优先从数据库查询，如果没有查询到再去服务器上查询。
      */
-    private void queryProvinces(){
+    private void queryProvinces() {
         titleText.setText("中国");
+        //最上层页面  显示不可退回
         backButton.setVisibility(View.GONE);
         provinceList = DataSupport.findAll(Province.class);
-        if (provinceList.size()>0){
+        if (provinceList.size() > 0) {
             dataList.clear();
-            for (Province province:provinceList
-                 ) {
+            for (Province province : provinceList) {
                 dataList.add(province.getProvinceName());
             }
             adapter.notifyDataSetChanged();
             listView.setSelection(0);
-            currentLevel=LEVEL_PROVINCE;
-        }else {
+            currentLevel = LEVEL_PROVINCE;
+        } else {
             String address = "http://guolin.tech/api/china";
             queryFromServer(address, "province");
         }
@@ -160,6 +184,7 @@ public class ChooseAreaFragment extends Fragment {
             for (City city : cityList) {
                 dataList.add(city.getCityName());
             }
+
             adapter.notifyDataSetChanged();
             listView.setSelection(0);
             currentLevel = LEVEL_CITY;
@@ -229,13 +254,14 @@ public class ChooseAreaFragment extends Fragment {
 
             @Override
             public void onFailure(Call call, IOException e) {
-                e.printStackTrace();
                 // 通过runOnUiThread()方法回到主线程处理逻辑
                 getActivity().runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         closeProgressDialog();
-                        Toast.makeText(getContext(), "加载失败", Toast.LENGTH_SHORT).show();
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                            Toast.makeText(getContext(), "加载失败", Toast.LENGTH_SHORT).show();
+                        }
                     }
                 });
             }
@@ -262,4 +288,5 @@ public class ChooseAreaFragment extends Fragment {
             progressDialog.dismiss();
         }
     }
+
 }
